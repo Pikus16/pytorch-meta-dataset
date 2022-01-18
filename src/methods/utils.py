@@ -40,7 +40,7 @@ def extract_features(bs: int,
                      support: Tensor,
                      query: Tensor,
                      model: nn.Module,
-                     use_timm = False):
+                     strategy=None): # strategy can be either 'timm','mae', or None
     """
     Extract features from support and query set using the provided model
         args:
@@ -57,16 +57,19 @@ def extract_features(bs: int,
     if bs > 0:
         if n_tasks > 1:
             raise ValueError("Multi task and feature batching not yet supported")
-        feat_s = batch_feature_extract(model, support, bs, device, use_timm=use_timm)
-        feat_q = batch_feature_extract(model, query, bs, device, use_timm=use_timm)
+        feat_s = batch_feature_extract(model, support, bs, device, strategy=strategy)
+        feat_q = batch_feature_extract(model, query, bs, device, strategy=strategy)
     else:
         support = support.to(device)
         query = query.to(device)
-        if use_timm:
+        if strategy == 'timm':
             feat_s = model.forward(support.view(n_tasks * shots_s, C, H, W))
             feat_q = model.forward(query.view(n_tasks * shots_q, C, H, W))
             #feat_s = model.forward_features(support.view(n_tasks * shots_s, C, H, W))
             #feat_q = model.forward_features(query.view(n_tasks * shots_q, C, H, W))
+        elif strategy == 'mae':
+            feat_s = model.forward_features(support.view(n_tasks * shots_s, C, H, W))
+            feat_q = model.forward_features(query.view(n_tasks * shots_q, C, H, W))
         else:    
             feat_s = model(support.view(n_tasks * shots_s, C, H, W), feature=True)
             feat_q = model(query.view(n_tasks * shots_q, C, H, W), feature=True)
@@ -80,7 +83,8 @@ def batch_feature_extract(model: nn.Module,
                           t: Tensor,
                           bs: int,
                           device: torch.device,
-                          use_timm = False) -> Tensor:
+                          strategy=None # strategy can be either 'timm','mae', or None
+                        ) -> Tensor:
     shots: int
     n_tasks, shots, C, H, W = t.size()
 
@@ -92,9 +96,11 @@ def batch_feature_extract(model: nn.Module,
 
         x = t[0, start:end, ...]
         x = x.to(device)
-        if use_timm:
+        if strategy == 'timm':
             #feat = model.forward_features(x)
             feat = model.forward(x)
+        elif strategy == 'mae':
+            feat = model.forward_features(x)
         else:
             feat = model(x, feature=True)
         feats.append(feat)

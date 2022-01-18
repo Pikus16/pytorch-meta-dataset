@@ -143,8 +143,10 @@ def main_worker(rank: int,
     
     model_path = get_model_dir(args=args)
     print('Number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()]))) 
-    #if args.timm_name == 'NONE':
-    #    load_checkpoint(model=model, model_path=model_path, type=args.model_tag)
+    if args.timm_name == 'NONE':
+        if 'mae_' in args.arch:
+            args.model_tag = 'mae'  
+        load_checkpoint(model=model, model_path=model_path, type=args.model_tag)
     model.eval()
 
     # ===============> Define metrics <=================

@@ -3,6 +3,7 @@ TRAINING:
     label_smoothing: 0.1
     num_updates: 100000
     ckpt_path: '/data/standard_datasets/meta_dataset/pytorch_checkpoints/checkpoints/'
+    mae_ckpt_path: '/data/standard_datasets/meta_dataset/mae_models/'
     seed: 2021
     visdom_port: 0
     eval_freq: 500
@@ -85,4 +86,4 @@ METHOD:
     episodic_training: False
 
 DISTRIBUTED:
-    gpus: [2]
+    gpus: [1]
