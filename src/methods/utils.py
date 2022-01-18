@@ -39,7 +39,8 @@ def get_one_hot(y_s: Tensor, num_classes: int):
 def extract_features(bs: int,
                      support: Tensor,
                      query: Tensor,
-                     model: nn.Module):
+                     model: nn.Module,
+                     use_timm = False):
     """
     Extract features from support and query set using the provided model
         args:
@@ -52,17 +53,23 @@ def extract_features(bs: int,
     n_tasks, shots_s, C, H, W = support.size()
     shots_q = query.size(1)
     device = dist.get_rank()
-
+    
     if bs > 0:
         if n_tasks > 1:
             raise ValueError("Multi task and feature batching not yet supported")
-        feat_s = batch_feature_extract(model, support, bs, device)
-        feat_q = batch_feature_extract(model, query, bs, device)
+        feat_s = batch_feature_extract(model, support, bs, device, use_timm=use_timm)
+        feat_q = batch_feature_extract(model, query, bs, device, use_timm=use_timm)
     else:
         support = support.to(device)
         query = query.to(device)
-        feat_s = model(support.view(n_tasks * shots_s, C, H, W), feature=True)
-        feat_q = model(query.view(n_tasks * shots_q, C, H, W), feature=True)
+        if use_timm:
+            feat_s = model.forward(support.view(n_tasks * shots_s, C, H, W))
+            feat_q = model.forward(query.view(n_tasks * shots_q, C, H, W))
+            #feat_s = model.forward_features(support.view(n_tasks * shots_s, C, H, W))
+            #feat_q = model.forward_features(query.view(n_tasks * shots_q, C, H, W))
+        else:    
+            feat_s = model(support.view(n_tasks * shots_s, C, H, W), feature=True)
+            feat_q = model(query.view(n_tasks * shots_q, C, H, W), feature=True)
         feat_s = feat_s.view(n_tasks, shots_s, -1)
         feat_q = feat_q.view(n_tasks, shots_q, -1)
 
@@ -72,7 +79,8 @@ def extract_features(bs: int,
 def batch_feature_extract(model: nn.Module,
                           t: Tensor,
                           bs: int,
-                          device: torch.device) -> Tensor:
+                          device: torch.device,
+                          use_timm = False) -> Tensor:
     shots: int
     n_tasks, shots, C, H, W = t.size()
 
@@ -84,8 +92,11 @@ def batch_feature_extract(model: nn.Module,
 
         x = t[0, start:end, ...]
         x = x.to(device)
-
-        feat = model(x, feature=True)
+        if use_timm:
+            #feat = model.forward_features(x)
+            feat = model.forward(x)
+        else:
+            feat = model(x, feature=True)
         feats.append(feat)
 
     feat_res = torch.cat(feats, 0).unsqueeze(0)

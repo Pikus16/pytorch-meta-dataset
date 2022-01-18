@@ -4,6 +4,7 @@ import pickle
 import shutil
 import argparse
 import json
+import os
 from os import environ
 from pathlib import Path
 from ast import literal_eval
@@ -17,6 +18,7 @@ import torch.distributed as dist
 from torch import Tensor
 from matplotlib.axes import Axes
 from mpl_toolkits.axes_grid1 import ImageGrid
+import wandb
 
 plt.style.use('ggplot')
 
@@ -159,6 +161,7 @@ def make_episode_visualization(args: argparse.Namespace,
                prop={'size': 30})
 
     fig.savefig(save_path)
+    #wandb.log({os.path.basename(save_path).replace('.png',''):fig})
     fig.clf()
     print(f"Figure saved at {save_path}")
 
@@ -355,6 +358,11 @@ def save_checkpoint(state: Any,
 
 def load_checkpoint(model, model_path, type='best') -> None:
     if type == 'best':
+        if 'ilsvrc_2012_v2' in str(model_path):
+            if os.path.exists(model_path):
+                pass
+            else:
+                model_path = Path(str(model_path).replace('ilsvrc_2012_v2', 'ilsvrc_2012'))
         checkpoint = torch.load('{}/model_best.pth.tar'.format(model_path))
         print(f'Loaded model from {model_path}/model_best.pth.tar')
     elif type == 'last':
@@ -368,7 +376,13 @@ def load_checkpoint(model, model_path, type='best') -> None:
     for k, v in state_dict.items():
         names.append(k)
 
-    model.load_state_dict(state_dict)
+    try:
+        model.load_state_dict(state_dict)
+    except:
+        print('Removing Fully connected Layer')
+        del state_dict['fc.weight']
+        del state_dict['fc.bias']
+        model.load_state_dict(state_dict, strict = False)
 
 
 def copy_config(args: argparse.Namespace, exp_root: Path, code_root: Path = Path("src/")):

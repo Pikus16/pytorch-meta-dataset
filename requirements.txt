@@ -146,12 +146,11 @@ tfrecord==1.12
 threadpoolctl==2.1.0
 tifffile==2021.4.8
 toolz==0.11.1
-torch==1.7.1+cu110
+torch==1.7.1
 torch-geometric==1.6.3
 torch-scatter==2.0.5
 torchaudio==0.7.2
 torchfile==0.1.0
-torchvision==0.8.2+cu110
 tornado==6.1
 tqdm==4.54.1
 traitlets==5.0.5
@@ -169,3 +168,4 @@ wrapt==1.12.1
 xarray==0.17.0
 xmltodict==0.12.0
 zict==2.0.0
+timm

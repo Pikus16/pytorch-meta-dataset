@@ -22,7 +22,7 @@ class Finetune(FSmethod):
         self.extract_batch_size = args.extract_batch_size
         self.finetune_all_layers = args.finetune_all_layers
         self.lr = args.finetune_lr
-
+        self.is_timm = args.timm_name != 'NONE'
         self.episodic_training = False
 
         super().__init__(args)
@@ -89,7 +89,8 @@ class Finetune(FSmethod):
             feat_s, feat_q = extract_features(self.extract_batch_size,
                                               support,
                                               query,
-                                              model)
+                                              model,
+                                              use_timm = self.is_timm)
 
             classifier = torch.nn.Linear(feat_s.size(-1), num_classes).to(device)
             preds_q = classifier(feat_q[0]).argmax(-1)
@@ -114,7 +115,8 @@ class Finetune(FSmethod):
             feat_s, feat_q = extract_features(self.extract_batch_size,
                                               support,
                                               query,
-                                              model)
+                                              model,
+                                              use_timm = self.is_timm)
             feat_s = F.normalize(feat_s, dim=-1)
             feat_q = F.normalize(feat_q, dim=-1)
 

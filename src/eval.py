@@ -2,7 +2,7 @@ import os
 import random
 import argparse
 from pathlib import Path
-
+import wandb
 import torch
 import numpy as np
 import pandas as pd
@@ -28,6 +28,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Eval')
     parser.add_argument('--base_config', type=str, required=True, help='config file')
     parser.add_argument('--method_config', type=str, default=True, help='Base config file')
+    parser.add_argument('--wandb_name', type=str, default=True, help='Wandb name')
+    parser.add_argument('--wandb_group', type=str, default=True, help='Wandb group')
     parser.add_argument('--opts', default=None, nargs=argparse.REMAINDER)
 
     args = parser.parse_args()
@@ -38,7 +40,8 @@ def parse_args() -> argparse.Namespace:
 
     if args.opts is not None:
         cfg = merge_cfg_from_list(cfg, args.opts)
-
+    cfg['wandb_name'] = args.wandb_name
+    cfg['wandb_group'] = args.wandb_group
     return cfg
 
 
@@ -56,6 +59,15 @@ def hash_config(args: argparse.Namespace) -> str:
 
     return str(res)[-10:].split('.')[0]
 
+def setup_wandb(cfg, name, group=None):
+    wandb.init(config=cfg,
+        project='lwll',
+        entity='learn',
+        save_code=True,
+        tags=['MAE_few_shot'],
+        group=group,
+        name=name
+    )
 
 def main_worker(rank: int,
                 world_size: int,
@@ -81,10 +93,15 @@ def main_worker(rank: int,
     exp_root = Path(os.path.join(args.res_path, args.method))
     exp_root.mkdir(exist_ok=True, parents=True)
     exp_no = hash_config(args)
-    exp_root = exp_root / str(exp_no)
+    model_name = args.timm_name
+    if model_name == 'NONE':
+        model_name = args.arch
+    exp_root = exp_root / model_name / str(exp_no)
     copy_config(args, exp_root)
 
     print(f"==>  Saving all at {exp_root}")
+
+    
 
     device = rank
     if args.seed is not None:
@@ -123,10 +140,11 @@ def main_worker(rank: int,
     if not isinstance(model, MetaModule) and world_size > 1:
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = DDP(model, device_ids=[rank])
-
+    
     model_path = get_model_dir(args=args)
-    print('Number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()])))
-    load_checkpoint(model=model, model_path=model_path, type=args.model_tag)
+    print('Number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()]))) 
+    #if args.timm_name == 'NONE':
+    #    load_checkpoint(model=model, model_path=model_path, type=args.model_tag)
     model.eval()
 
     # ===============> Define metrics <=================
@@ -163,7 +181,8 @@ def main_worker(rank: int,
                                     y_q=query_labels)
         soft_preds_q = soft_preds_q.to(device)
         acc += (soft_preds_q.argmax(-1) == query_labels).float().mean()
-
+        
+        #wandb.log({'recorded_acc' : 100 * acc / (i + 1)})
         tqdm_bar.set_description('Acc {:.2f}'.format(100 * acc / (i + 1)))
 
         # ======> Plot inference metrics <=======
@@ -231,6 +250,9 @@ if __name__ == "__main__":
     distributed = world_size > 1
     args.distributed = distributed
     args.port = find_free_port()
+
+    #setup_wandb(args, name = args.wandb_name, group = args.wandb_group)
+    #main_worker(0, world_size, args)
     mp.spawn(main_worker,
              args=(world_size, args),
              nprocs=world_size,
